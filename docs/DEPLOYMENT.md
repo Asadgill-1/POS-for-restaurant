@@ -22,6 +22,13 @@ You run these — they need your account, and no token of yours is ever handled 
 5. Enable **Neon database branching for preview deployments** so a preview
    deploy never touches production data.
 
+## Do not run the build command by hand
+
+`buildCommand` in `apps/web/vercel.json` is what **Vercel** runs, inside a
+checkout of this repo. Pasting it into a terminal that is not sitting in the
+repo produces `ERR_PNPM_NO_PKG_MANIFEST: No package.json found` — which is
+correct and harmless. To build locally, use `pnpm build` from the repo root.
+
 ## What happens on a push
 
 `vercel.json` runs `prisma generate` → `prisma migrate deploy` → `next build`.
