@@ -19,6 +19,8 @@ build/
 
 # prisma generated client
 packages/db/src/generated/
+# copied from packages/db at build time by scripts/copy-prisma-engine.mjs
+apps/web/src/generated/
 
 # tests
 coverage/

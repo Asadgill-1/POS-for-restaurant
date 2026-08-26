@@ -13,7 +13,10 @@ const nextConfig: NextConfig = {
   // throws PrismaClientInitializationError: engine binary not found.
   outputFileTracingRoot: repoRoot,
   outputFileTracingIncludes: {
-    '/api/**/*': ['../../packages/db/src/generated/client/**/*'],
+    // scripts/copy-prisma-engine.mjs puts the engine here, because this is the
+    // first path Prisma searches at runtime. Tracing it from packages/db is not
+    // enough -- the file ships, but lands somewhere Prisma never looks.
+    '/api/**/*': ['./src/generated/client/**/*'],
   },
   // Workspace packages ship as TypeScript source, so Next compiles them itself.
   transpilePackages: ['@mizan/domain', '@mizan/contracts', '@mizan/db'],
