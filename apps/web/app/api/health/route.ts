@@ -6,8 +6,12 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 type Health = {
-  status: 'ok' | 'degraded';
-  database: 'up' | 'down';
+  status: 'ok';
+  database: 'up';
+  /** Number of applied Prisma migrations. 0 means the schema was never created. */
+  migrations: number;
+  /** Proves a real table is queryable, not just that the connection opens. */
+  organizations: number;
   version: string;
   time: string;
 };
@@ -26,8 +30,26 @@ export async function GET(): Promise<NextResponse<ApiResponse<Health>>> {
   };
 
   try {
+    // Three levels, cheapest first. `SELECT 1` alone would report "up" for a
+    // database that is reachable but has no tables -- which for a POS is a
+    // total outage wearing a green badge.
     await prisma.$queryRaw`SELECT 1`;
-    return NextResponse.json(ok<Health>({ status: 'ok', database: 'up', ...base }));
+
+    const [applied] = await prisma.$queryRaw<
+      { count: bigint }[]
+    >`SELECT COUNT(*)::bigint AS count FROM "_prisma_migrations" WHERE finished_at IS NOT NULL`;
+
+    const organizations = await prisma.organization.count();
+
+    return NextResponse.json(
+      ok<Health>({
+        status: 'ok',
+        database: 'up',
+        migrations: Number(applied?.count ?? 0),
+        organizations,
+        ...base,
+      }),
+    );
   } catch (cause) {
     console.error('[health] database unreachable', cause);
 
