@@ -13,3 +13,5 @@ export {
 } from './money';
 
 export { hashPassword, needsRehash, PasswordError, verifyPassword } from './password';
+export { generateToken, hashIp, hashToken, tokenHashEquals } from './token';
+export * from './permissions';
