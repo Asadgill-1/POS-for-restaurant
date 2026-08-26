@@ -11,3 +11,5 @@ export {
   type Bps,
   type Fils,
 } from './money';
+
+export { hashPassword, needsRehash, PasswordError, verifyPassword } from './password';

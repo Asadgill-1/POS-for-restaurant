@@ -10,8 +10,13 @@ type Health = {
   database: 'up';
   /** Number of applied Prisma migrations. 0 means the schema was never created. */
   migrations: number;
-  /** Proves a real table is queryable, not just that the connection opens. */
-  organizations: number;
+  /**
+   * Rows in the global role catalogue. Proves a real table is queryable and
+   * that the seed ran. Deliberately NOT a tenant table: those are behind row
+   * level security, so without a tenant context they correctly return zero and
+   * would make this check meaningless.
+   */
+  roles: number;
   version: string;
   time: string;
 };
@@ -39,14 +44,14 @@ export async function GET(): Promise<NextResponse<ApiResponse<Health>>> {
       { count: bigint }[]
     >`SELECT COUNT(*)::bigint AS count FROM "_prisma_migrations" WHERE finished_at IS NOT NULL`;
 
-    const organizations = await prisma.organization.count();
+    const roles = await prisma.role.count();
 
     return NextResponse.json(
       ok<Health>({
         status: 'ok',
         database: 'up',
         migrations: Number(applied?.count ?? 0),
-        organizations,
+        roles,
         ...base,
       }),
     );

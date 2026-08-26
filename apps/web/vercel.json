@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "node ../../scripts/preflight-env.mjs && pnpm --filter @mizan/db generate && node ../../scripts/copy-prisma-engine.mjs && pnpm --filter @mizan/db migrate:deploy && next build",
+  "buildCommand": "node ../../scripts/preflight-env.mjs && pnpm --filter @mizan/db generate && node ../../scripts/copy-prisma-engine.mjs && node ../../scripts/migrate-deploy.mjs && next build",
   "regions": [
     "fra1"
   ]

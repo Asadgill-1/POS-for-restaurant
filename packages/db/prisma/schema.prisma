@@ -68,6 +68,7 @@ model Organization {
   branches  Branch[]
   terminals Terminal[]
   users     User[]
+  devices   Device[]
 
   @@index([status])
   @@map("organizations")
@@ -107,6 +108,8 @@ model Branch {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   terminals    Terminal[]
+  devices      Device[]
+  userRoles    UserRole[]
 
   @@unique([organizationId, code])
   @@index([organizationId, status])
@@ -147,13 +150,224 @@ model User {
   status       UserStatus @default(INVITED)
   isSuperAdmin Boolean    @default(false)
 
+  // ── Employment (spec §27). A POS-only waiter has no password; a back-office
+  // owner has no PIN. Both are Users -- see the M1 header comment.
+  /// Short code shown on receipts and reports, unique within the organisation.
+  employeeCode String?
+  phone        String?
+  /// Argon2-class hash of a 4-6 digit PIN. Only usable on an enrolled device,
+  /// and never sufficient on its own for refunds or settings changes.
+  pinHash      String?
+  hireDate     DateTime? @db.Date
+
   lastLoginAt DateTime? @db.Timestamptz(3)
   createdAt   DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt   DateTime? @db.Timestamptz(3)
 
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  organization Organization?        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  roles        UserRole[]
+  sessions     Session[]
+  resetTokens  PasswordResetToken[]
 
+  @@unique([organizationId, employeeCode])
   @@index([organizationId, status])
   @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// M1 — identity, authorisation, audit
+//
+// One identity table. A "waiter" and an "owner" are both User rows; what
+// differs is how they authenticate and what roles they hold. Splitting staff
+// into a second Employee table would mean two ways to authenticate into two
+// tables that must never disagree about who someone is.
+//
+// Two authentication planes, deliberately different (spec §6):
+//   back office  email + passwordHash -> Session
+//   POS terminal enrolled Device + pinHash -> Session bound to that device
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum RoleKey {
+  SUPER_ADMIN
+  OWNER
+  MANAGER
+  CASHIER
+  WAITER
+  KITCHEN
+  INVENTORY
+}
+
+enum DeviceStatus {
+  ACTIVE
+  REVOKED
+}
+
+/// Global catalogue, not tenant data — every organisation gets the same seven
+/// roles. Per-organisation tuning (discount ceilings) arrives with discounts in M6.
+model Role {
+  id          String  @id @default(uuid()) @db.Uuid
+  key         RoleKey @unique
+  name        String
+  description String?
+
+  permissions RolePermission[]
+  userRoles   UserRole[]
+
+  @@map("roles")
+}
+
+/// Capability catalogue, e.g. "order.create", "payment.refund".
+/// Checked server-side on every route; frontend hiding is cosmetic (spec §49).
+model Permission {
+  id          String  @id @default(uuid()) @db.Uuid
+  key         String  @unique
+  description String
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @db.Uuid
+  permissionId String @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+/// A user's role, optionally narrowed to one branch.
+/// branchId NULL means the role applies across every branch in the organisation
+/// — that is how an owner differs from a branch manager.
+model UserRole {
+  id       String  @id @default(uuid()) @db.Uuid
+  userId   String  @db.Uuid
+  roleId   String  @db.Uuid
+  branchId String? @db.Uuid
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role    @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  // NOTE: a plain @@unique treats NULL branchId as distinct, so it would allow
+  // duplicate org-wide grants. The migration replaces this with a UNIQUE ...
+  // NULLS NOT DISTINCT index.
+  @@unique([userId, roleId, branchId])
+  @@index([userId])
+  @@map("user_roles")
+}
+
+/// Server-side session. Stores a SHA-256 of the token, never the token itself,
+/// so a database leak cannot be replayed as a valid session.
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  tokenHash String   @unique
+  expiresAt DateTime @db.Timestamptz(3)
+
+  /// Set when the session was opened by PIN unlock on an enrolled terminal.
+  deviceId String? @db.Uuid
+  /// Hashed, never the raw address — logs must not become a location history.
+  ipHash    String?
+  userAgent String?
+
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  lastSeenAt   DateTime  @default(now()) @db.Timestamptz(3)
+  revokedAt    DateTime? @db.Timestamptz(3)
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+/// A POS terminal enrolled once by a manager. Holds a long-lived token so
+/// employees can then unlock with a short PIN. Losing a tablet means revoking
+/// one device, not rotating every PIN in the branch.
+model Device {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  branchId       String       @db.Uuid
+  terminalId     String?      @db.Uuid
+  name           String
+  tokenHash      String       @unique
+  status         DeviceStatus @default(ACTIVE)
+
+  enrolledByUserId String?   @db.Uuid
+  enrolledAt       DateTime  @default(now()) @db.Timestamptz(3)
+  lastSeenAt       DateTime? @db.Timestamptz(3)
+  revokedAt        DateTime? @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch       Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  sessions     Session[]
+
+  @@index([organizationId, branchId, status])
+  @@map("devices")
+}
+
+/// Single-use, hashed, short-lived.
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime  @db.Timestamptz(3)
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+/// Drives rate limiting and lockout (spec §6). Keyed by identifier AND by
+/// hashed IP so neither a single account nor a single source can be hammered.
+model LoginAttempt {
+  id         String   @id @default(uuid()) @db.Uuid
+  /// Lower-cased email, or the user id for a PIN attempt.
+  identifier String
+  ipHash     String?
+  succeeded  Boolean
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([identifier, createdAt])
+  @@index([ipHash, createdAt])
+  @@map("login_attempts")
+}
+
+/// Append-only. The migration REVOKEs UPDATE and DELETE and adds a trigger, so
+/// this cannot be rewritten by application code even with a compromised
+/// connection (spec §48, §85).
+model AuditLog {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String? @db.Uuid
+  branchId       String? @db.Uuid
+  actorUserId    String? @db.Uuid
+
+  /// Dotted verb, e.g. "auth.login", "payment.refund".
+  action     String
+  entityType String
+  entityId   String?
+
+  /// State before and after. Never contains secrets — writers redact.
+  before Json?
+  after  Json?
+
+  ipHash    String?
+  userAgent String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([organizationId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
 }
