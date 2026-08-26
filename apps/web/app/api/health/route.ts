@@ -61,5 +61,44 @@ function classify(cause: unknown): string[] {
   if (typeof e.code === 'string') parts.push(`code=${e.code}`);
   if (typeof e.clientVersion === 'string') parts.push(`prisma=${e.clientVersion}`);
 
-  return parts.length > 0 ? parts : ['unknown'];
+  parts.push(`cause=${categorise(cause)}`);
+
+  // Presence only, never the value. Distinguishes "not configured" from
+  // "configured but broken", which are opposite fixes.
+  parts.push(`hasDatabaseUrl=${Boolean(process.env.DATABASE_URL)}`);
+  parts.push(`hasDirectUrl=${Boolean(process.env.DATABASE_URL_UNPOOLED)}`);
+
+  return parts;
+}
+
+/**
+ * Map a Prisma initialisation failure onto a fixed category.
+ *
+ * Matches against the error text but NEVER returns any of it -- the message can
+ * contain the connection string, host, or credentials. Only the category name,
+ * which is a constant in this file, is returned.
+ */
+function categorise(cause: unknown): string {
+  const text = cause instanceof Error ? cause.message : '';
+
+  if (/locate the Query Engine|Query engine library|libquery_engine/i.test(text)) {
+    return 'engine-binary-not-found';
+  }
+  if (/Environment variable not found|is not defined|Invalid `?datasource/i.test(text)) {
+    return 'datasource-env-missing';
+  }
+  if (/[Cc]an't reach database server|ECONNREFUSED|ETIMEDOUT|ENOTFOUND/.test(text)) {
+    return 'database-unreachable';
+  }
+  if (/[Aa]uthentication failed|password/i.test(text)) {
+    return 'auth-failed';
+  }
+  if (/prepared statement|pgbouncer/i.test(text)) {
+    return 'pgbouncer-prepared-statement';
+  }
+  if (/does not exist on the database|P1003/i.test(text)) {
+    return 'database-does-not-exist';
+  }
+
+  return 'unclassified';
 }
