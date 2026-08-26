@@ -9,7 +9,8 @@ services:
       POSTGRES_PASSWORD: mizan_local_dev
       POSTGRES_DB: mizan_pos
     ports:
-      - '5432:5432'
+      # 5433 on the host: a native Postgres commonly already owns 5432.
+      - '5433:5432'
     volumes:
       - mizan-pgdata:/var/lib/postgresql/data
     healthcheck:

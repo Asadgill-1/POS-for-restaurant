@@ -39,7 +39,7 @@ Worth knowing before the first kitchen test rather than during it.
 ## Local development
 
 ```bash
-docker compose up -d          # Postgres 17 on :5432
+docker compose up -d          # Postgres 17 on host port 5433
 cp .env.example .env          # fill DATABASE_URL* from docker-compose.yml
 pnpm install
 pnpm db:generate
