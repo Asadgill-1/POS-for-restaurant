@@ -1,0 +1,22 @@
+# Local development database only. Production is Neon (see docs/DEPLOYMENT.md).
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: mizan-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mizan
+      POSTGRES_PASSWORD: mizan_local_dev
+      POSTGRES_DB: mizan_pos
+    ports:
+      - '5432:5432'
+    volumes:
+      - mizan-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mizan -d mizan_pos']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mizan-pgdata:

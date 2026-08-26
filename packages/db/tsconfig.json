@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    // The seed runs through Node's native type stripping, which requires the
+    // real `.ts` specifier on relative imports.
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src/**/*.ts", "prisma.config.ts"],
+  "exclude": ["src/generated/**"]
+}

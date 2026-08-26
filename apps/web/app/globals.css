@@ -1,0 +1,60 @@
+@import 'tailwindcss';
+
+/*
+ * Mizan POS design tokens (spec §41, §42).
+ *
+ * Principles: clean, high contrast, large touch targets, clear hierarchy.
+ * Status is NEVER communicated by colour alone — every status badge pairs its
+ * colour with an icon and a word (spec §80).
+ */
+@theme {
+  /* Brand */
+  --color-brand-50: oklch(0.97 0.02 195);
+  --color-brand-100: oklch(0.93 0.05 195);
+  --color-brand-500: oklch(0.62 0.13 195);
+  --color-brand-600: oklch(0.54 0.13 195);
+  --color-brand-700: oklch(0.45 0.11 195);
+  --color-brand-900: oklch(0.29 0.07 195);
+
+  /* Semantic status (spec §42) */
+  --color-status-ok: oklch(0.62 0.16 150); /* paid / ready / available */
+  --color-status-pending: oklch(0.72 0.16 70); /* preparing / pending   */
+  --color-status-danger: oklch(0.58 0.21 27); /* cancelled / overdue    */
+  --color-status-info: oklch(0.60 0.16 255); /* active / informational */
+  --color-status-idle: oklch(0.65 0.01 260); /* inactive               */
+
+  /* 8px spacing system */
+  --spacing: 0.5rem;
+
+  /* Minimum practical POS touch target (spec §43) */
+  --size-touch: 2.75rem; /* 44px */
+
+  --font-sans: 'Inter var', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+/* Money must never shift width as digits change. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* Visible focus everywhere (spec §80) — never `outline: none` without a replacement. */
+:focus-visible {
+  outline: 2px solid var(--color-brand-600);
+  outline-offset: 2px;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: light-dark(oklch(0.98 0.003 260), oklch(0.19 0.008 260));
+  color: light-dark(oklch(0.22 0.01 260), oklch(0.95 0.005 260));
+  -webkit-font-smoothing: antialiased;
+}

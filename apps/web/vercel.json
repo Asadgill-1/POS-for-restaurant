@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "pnpm --filter @mizan/db generate && pnpm --filter @mizan/db migrate:deploy && next build",
+  "regions": ["fra1"]
+}

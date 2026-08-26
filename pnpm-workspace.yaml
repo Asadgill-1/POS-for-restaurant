@@ -1,0 +1,13 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# pnpm >=11 blocks package lifecycle scripts unless explicitly allowed here.
+# Keep this list minimal and deliberate — each `true` is third-party code we
+# let execute at install time.
+allowBuilds:
+  esbuild: true
+  prisma: true
+  "@prisma/client": true
+  "@prisma/engines": true
+  unrs-resolver: true

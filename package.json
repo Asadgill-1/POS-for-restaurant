@@ -1,0 +1,25 @@
+{
+  "name": "mizan-pos",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @mizan/web dev",
+    "build": "pnpm --filter @mizan/web build",
+    "start": "pnpm --filter @mizan/web start",
+    "lint": "pnpm -r --parallel lint",
+    "typecheck": "pnpm -r --parallel typecheck",
+    "test": "pnpm -r --parallel test",
+    "db:generate": "pnpm --filter @mizan/db generate",
+    "db:migrate": "pnpm --filter @mizan/db migrate",
+    "db:seed": "pnpm --filter @mizan/db seed",
+    "db:studio": "pnpm --filter @mizan/db studio"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3"
+  }
+}

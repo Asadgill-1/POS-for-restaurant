@@ -1,0 +1,159 @@
+// Mizan POS — database schema
+//
+// MONEY RULE: every monetary column is `Int` and holds FILS (1 AED = 100 fils).
+// No Decimal, no Float, ever. Rates are `Int` basis points (5% = 500).
+// See packages/domain/src/money.ts for the arithmetic and docs/DECISIONS.md for why.
+//
+// M0 defines the tenancy spine only. Roles/permissions/sessions arrive in M1,
+// menu in M4, orders in M5 — each as its own migration.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Migrations and any session-level Postgres feature need an unpooled link.
+  // Neon injects both; locally they point at the same docker container.
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+enum OrganizationStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum BranchStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum TerminalStatus {
+  ACTIVE
+  INACTIVE
+  RETIRED
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+/// Which charges a menu price is already understood to contain.
+/// Drives the order calculation pipeline — see packages/domain (M3).
+enum PriceComponent {
+  VAT
+  SERVICE
+}
+
+model Organization {
+  id        String             @id @default(uuid()) @db.Uuid
+  name      String
+  /// URL-safe tenant key. Also the receipt/order-number prefix.
+  slug      String             @unique
+  /// UAE Tax Registration Number. Printed on VAT invoices.
+  trn       String?
+  status    OrganizationStatus @default(TRIAL)
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+  /// Soft delete. Financial history is never hard-deleted (spec §84).
+  deletedAt DateTime? @db.Timestamptz(3)
+
+  branches  Branch[]
+  terminals Terminal[]
+  users     User[]
+
+  @@index([status])
+  @@map("organizations")
+}
+
+model Branch {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  /// Short code used in order numbers, e.g. "MAR" for Dubai Marina.
+  code           String
+  name           String
+  status         BranchStatus @default(ACTIVE)
+
+  // ── Locale / time ────────────────────────────────────────────────────────
+  /// IANA zone. Reports and "today" are computed in this zone, never in UTC.
+  timezone String @default("Asia/Dubai")
+  currency String @default("AED")
+  /// Minutes past local midnight at which the business day rolls over.
+  /// 240 = 04:00, so a 01:30 order still belongs to the previous night.
+  businessDayCutoffMinutes Int @default(240)
+
+  // ── Tax and charges (spec §19, §20) — configurable, never hard-coded ─────
+  vatBps             Int              @default(500)
+  serviceChargeBps   Int              @default(0)
+  municipalityFeeBps Int              @default(0)
+  /// Empty = menu prices are net. [VAT] = prices already include VAT.
+  pricesInclude      PriceComponent[] @default([])
+
+  // ── Receipt header (spec §21) ────────────────────────────────────────────
+  addressLine String?
+  phone       String?
+  trn         String?
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  terminals    Terminal[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+  @@map("branches")
+}
+
+model Terminal {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @db.Uuid
+  branchId       String         @db.Uuid
+  /// Embedded in every order number this terminal mints, which is what lets an
+  /// OFFLINE terminal generate a globally unique number with no coordination.
+  code           String
+  name           String
+  status         TerminalStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  branch       Branch       @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@unique([branchId, code])
+  @@index([organizationId])
+  @@map("terminals")
+}
+
+model User {
+  id String @id @default(uuid()) @db.Uuid
+  /// Null only for platform super admins, who belong to no tenant.
+  organizationId String? @db.Uuid
+
+  email        String     @unique
+  /// Argon2id. Never a plaintext password or PIN (spec §27).
+  passwordHash String
+  name         String
+  status       UserStatus @default(INVITED)
+  isSuperAdmin Boolean    @default(false)
+
+  lastLoginAt DateTime? @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt   DateTime? @db.Timestamptz(3)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status])
+  @@map("users")
+}

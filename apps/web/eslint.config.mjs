@@ -1,0 +1,30 @@
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { FlatCompat } from '@eslint/eslintrc';
+
+const compat = new FlatCompat({ baseDirectory: dirname(fileURLToPath(import.meta.url)) });
+
+// RTL (spec §81): Arabic ships later, but retrofitting direction into 200
+// components does not happen. Physical direction utilities are banned from day
+// one — use the logical variants instead:
+//   pl-/pr- -> ps-/pe-        ml-/mr- -> ms-/me-
+//   text-left/right -> text-start/end   border-l/r -> border-s/e
+const PHYSICAL_DIRECTION_UTILITY =
+  /(?:^|\s)-?(?:pl|pr|ml|mr)-\d|(?:^|\s)text-(?:left|right)(?:\s|$)|(?:^|\s)(?:border|rounded)-[lr](?:-|\s|$)/;
+
+export default [
+  ...compat.extends('next/core-web-vitals', 'next/typescript'),
+  {
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: `Literal[value=${PHYSICAL_DIRECTION_UTILITY}]`,
+          message:
+            'Physical direction utility found. Use the logical variant (ps-/pe-/ms-/me-/text-start/text-end/border-s/border-e) so RTL works without a rewrite.',
+        },
+      ],
+    },
+  },
+  { ignores: ['.next/**', 'node_modules/**'] },
+];
