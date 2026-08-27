@@ -35,6 +35,34 @@ correct and harmless. To build locally, use `pnpm build` from the repo root.
 A merge to `main` therefore migrates and deploys in one step. Preview branches
 migrate their own Neon branch.
 
+## Required: a least-privilege application role
+
+Row level security is bypassed entirely by a superuser or a role with
+`BYPASSRLS`, so the role in `DATABASE_URL` must be neither. See
+[DECISIONS.md §4a](DECISIONS.md) for how this was discovered the hard way.
+
+On Neon, check the role the integration injected:
+
+```sql
+SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user;
+```
+
+Both flags must be `f`. If they are not, create a dedicated role and point
+`DATABASE_URL` at it, keeping the owner only in `DATABASE_URL_UNPOOLED` for
+migrations:
+
+```sql
+CREATE ROLE mizan_app LOGIN PASSWORD '...' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+GRANT USAGE ON SCHEMA public TO mizan_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO mizan_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO mizan_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO mizan_app;
+```
+
+`pnpm --filter @mizan/db test` asserts both properties and fails loudly if the
+connected role can bypass RLS.
+
 ## Known constraint — the Kitchen Display stream
 
 The KDS SSE route (M7) needs `runtime = 'nodejs'` and `maxDuration = 300`, and

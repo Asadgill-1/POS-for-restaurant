@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hashPassword, needsRehash, PasswordError, verifyPassword } from './password';
+import { hashPassword, needsRehash, PasswordError, verifyPassword } from './password.ts';
 
 describe('hashPassword', () => {
   it('produces a self-describing, parseable format', async () => {

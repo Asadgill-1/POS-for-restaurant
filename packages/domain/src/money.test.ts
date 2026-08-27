@@ -7,7 +7,7 @@ import {
   netFromInclusive,
   parseAedToFils,
   roundHalfUp,
-} from './money';
+} from './money.ts';
 
 describe('roundHalfUp', () => {
   it('divides exactly when there is no remainder', () => {

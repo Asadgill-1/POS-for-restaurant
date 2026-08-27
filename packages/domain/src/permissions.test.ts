@@ -7,7 +7,7 @@ import {
   rolesHavePermission,
   type PermissionKey,
   type RoleKey,
-} from './permissions';
+} from './permissions.ts';
 
 describe('catalogue integrity', () => {
   it('has an entry for every role', () => {

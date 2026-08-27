@@ -53,6 +53,39 @@ Application-level `where organizationId` filtering is ergonomics, not
 enforcement — one forgotten clause would be a cross-tenant breach, and a public
 SaaS cannot rely on nobody ever forgetting.
 
+## 4a. The application must not connect as a superuser or table owner
+
+RLS protects nothing if the connecting role is exempt from it, and Postgres
+exempts two kinds of role **unconditionally**:
+
+- `rolsuper` (superuser) — `FORCE ROW LEVEL SECURITY` does not apply
+- `rolbypassrls`
+
+A table's owner is also exempt unless `FORCE` is set. `FORCE` is set here, so
+ownership alone is not a live hole — but an owning application role is one
+forgotten `FORCE` on one future table away from a silent breach.
+
+This is not theoretical. The first run of the isolation suite showed **complete
+tenant leakage** — every organisation could read and update every other
+organisation's rows — while `pg_class` reported `relrowsecurity = t`,
+`relforcerowsecurity = t`, and every policy present and correct. Nothing was
+wrong with the schema. The connection was a superuser.
+
+The failure mode is the dangerous kind: no error, no warning, and a schema that
+audits clean. Only querying real data across two tenants reveals it.
+
+So there are two roles:
+
+| Role | Used for | Properties |
+|---|---|---|
+| owner | `prisma migrate deploy`, via `directUrl` / `DATABASE_URL_UNPOOLED` | owns the tables, needs DDL |
+| application | every runtime query, via `DATABASE_URL` | `NOSUPERUSER`, `NOBYPASSRLS`, owns nothing |
+
+`packages/db/src/tenant.test.ts` asserts both properties of `current_user`
+before it asserts anything about isolation, so this can never regress quietly.
+**Verify it on Neon too** — a managed provider's default role is not guaranteed
+to be safe here.
+
 ## 5. Business date is not calendar date
 
 Restaurants trade past midnight; a 01:30 order belongs to the previous night's

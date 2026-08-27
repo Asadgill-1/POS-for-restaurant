@@ -10,8 +10,8 @@ export {
   roundHalfUp,
   type Bps,
   type Fils,
-} from './money';
+} from './money.ts';
 
-export { hashPassword, needsRehash, PasswordError, verifyPassword } from './password';
-export { generateToken, hashIp, hashToken, tokenHashEquals } from './token';
-export * from './permissions';
+export { hashPassword, needsRehash, PasswordError, verifyPassword } from './password.ts';
+export { generateToken, hashIp, hashToken, tokenHashEquals } from './token.ts';
+export * from './permissions.ts';

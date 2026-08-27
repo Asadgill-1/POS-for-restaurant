@@ -17,14 +17,16 @@
     "validate": "prisma validate",
     "typecheck": "tsc --noEmit",
     "lint": "prisma validate",
-    "test": "echo \"no unit tests in @mizan/db — integration tests land in M1\" && exit 0"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@prisma/client": "^6.3.1"
+    "@prisma/client": "^6.3.1",
+    "@mizan/domain": "workspace:*"
   },
   "devDependencies": {
     "prisma": "^6.3.1",
     "typescript": "^5.7.3",
-    "@types/node": "^22.10.7"
+    "@types/node": "^22.10.7",
+    "vitest": "^3.0.5"
   }
 }

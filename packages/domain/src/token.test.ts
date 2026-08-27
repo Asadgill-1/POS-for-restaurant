@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateToken, hashIp, hashToken, tokenHashEquals } from './token';
+import { generateToken, hashIp, hashToken, tokenHashEquals } from './token.ts';
 
 describe('generateToken', () => {
   it('is URL-safe and unpadded, so it survives a cookie or header intact', () => {
