@@ -13,6 +13,9 @@ services:
       - '5433:5432'
     volumes:
       - mizan-pgdata:/var/lib/postgresql/data
+      # POSTGRES_USER above is a SUPERUSER, which RLS ignores entirely. This
+      # creates the least-privilege role the app must connect as (first init only).
+      - ./packages/db/sql/app-role.sql:/docker-entrypoint-initdb.d/10-app-role.sql:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U mizan -d mizan_pos']
       interval: 5s

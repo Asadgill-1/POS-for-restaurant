@@ -16,7 +16,8 @@
     "db:generate": "pnpm --filter @mizan/db generate",
     "db:migrate": "pnpm --filter @mizan/db migrate",
     "db:seed": "pnpm --filter @mizan/db seed",
-    "db:studio": "pnpm --filter @mizan/db studio"
+    "db:studio": "pnpm --filter @mizan/db studio",
+    "db:local": "node scripts/local-db.mjs"
   },
   "devDependencies": {
     "prettier": "^3.4.2",
