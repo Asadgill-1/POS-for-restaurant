@@ -15,6 +15,11 @@ const REQUIRED = [
     why: 'Prisma runs `migrate deploy` during the build.',
     fix: 'In Vercel: Storage -> Neon (region aws-eu-central-1). It injects this automatically.',
   },
+  {
+    key: 'AUTH_SECRET',
+    why: 'Sign-in pseudonymises client addresses with it for rate limiting and audit.',
+    fix: 'Generate one with: openssl rand -base64 32  -- and keep it stable, or rate-limit history stops matching.',
+  },
 ];
 
 const RECOMMENDED = [
@@ -22,11 +27,6 @@ const RECOMMENDED = [
     key: 'DATABASE_URL_UNPOOLED',
     why: 'Migrations need a direct, unpooled connection.',
     fix: 'Neon injects this alongside DATABASE_URL. Falls back to DATABASE_URL if absent.',
-  },
-  {
-    key: 'AUTH_SECRET',
-    why: 'Session signing (used from M1 onward).',
-    fix: 'Generate one with: openssl rand -base64 32',
   },
 ];
 

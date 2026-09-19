@@ -1,34 +1,29 @@
-import { err, LoginSchema, type ApiResponse } from '@mizan/contracts';
-import { NextResponse } from 'next/server';
+import type { ErrorCode } from '@mizan/contracts';
+import { LoginSchema } from '@mizan/contracts';
+import { login, type LoginFailure } from '@mizan/db';
+import { fail, respond, withRoute } from '@/lib/route';
+import { SESSION_COOKIE, sessionCookieOptions } from '@/lib/session';
 
 export const runtime = 'nodejs';
 
-/**
- * TODO(M1): real authentication.
- *
- * Not implemented yet, and deliberately not faked (spec §98). M1 adds:
- *   - Argon2id verification against `users.password_hash`
- *   - rate limiting (5 attempts / 15 min, per identity and per IP) + lockout
- *   - an HttpOnly, Secure, SameSite=Lax session cookie
- *   - an `audit_logs` row for both success and failure
- *
- * Until then this route validates its input and returns an honest 501 rather
- * than pretending a session exists.
- */
-export async function POST(request: Request): Promise<NextResponse<ApiResponse<never>>> {
-  const parsed = LoginSchema.safeParse(await request.json().catch(() => null));
+const FAILURES: Record<LoginFailure, [ErrorCode, string]> = {
+  // Identical for a wrong password and an unknown email: telling them apart
+  // would let anyone test which addresses have accounts.
+  invalid_credentials: ['UNAUTHENTICATED', 'Email or password is incorrect.'],
+  rate_limited: ['RATE_LIMITED', 'Too many sign-in attempts. Wait 15 minutes and try again.'],
+  account_disabled: ['INSUFFICIENT_PERMISSION', 'This account is disabled. Contact your manager.'],
+};
 
-  if (!parsed.success) {
-    return NextResponse.json(
-      err('VALIDATION_FAILED', 'Check the highlighted fields.', {
-        fields: parsed.error.flatten().fieldErrors,
-      }),
-      { status: 422 },
-    );
+export const POST = withRoute({ auth: 'public', body: LoginSchema }, async ({ body, meta }) => {
+  const result = await login({ ...body, ...meta });
+
+  if (!result.ok) {
+    const [code, message] = FAILURES[result.reason];
+    return fail(code, message);
   }
 
-  return NextResponse.json(
-    err('NOT_IMPLEMENTED', 'Sign-in is not available yet — authentication ships in the next milestone.'),
-    { status: 501 },
-  );
-}
+  // Role-based landing surfaces (/pos, /dashboard) arrive in M5 and M13.
+  const response = respond({ redirectTo: '/' });
+  response.cookies.set(SESSION_COOKIE, result.token, sessionCookieOptions(result.expiresAt));
+  return response;
+});
